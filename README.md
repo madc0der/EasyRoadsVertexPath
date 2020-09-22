@@ -52,6 +52,14 @@ Vertex paths gizmos are shown in Play mode:
 2. `ERPathToVertexPathWrapper` - builds vertex path from ER spline path for given road (by default with `angleThreshold` and `scanStep` set for ERNetworkVertexPathCreator). If `angleThreshold` or `scanStep` must be customized, `ERNetworkVertexPathCreator` can be manually attached to the road
 3. `ERPathAdapter` - provide API to follow vertex path
 
+## API methods of `ERPathAdapter`
+- `Vector3 GetPointAtDistance(float distance)`
+- `Quaternion GetRotationAtDistance(float distance)`
+- `Vector3 GetDirectionAtDistance(float distance)`
+- `float GetClosestDistanceAlongPath(Vector3 p)`
+- `Vector3 GetClosestPointOnPath(Vector3 p, out float closestDistance)`
+- `Vector3 GetClosestPointOnPath(Vector3 p)`
+
 ## Notes:
 - I'm not using crossings, therefore linked roads are not supported
 - All methods distance-related methods are map distance to current road bounds (from zero to total path distance) so you can use negative distance or distance much more than total road length
