@@ -29,6 +29,11 @@ namespace ERVertexPath
 
         public float[] Distances => distances;
 
+        public Dictionary<int, GameObject> GetStartIndexToRoadMap()
+        {
+            return startIndexToRoadMap;
+        }
+
         public void InitFromWrapper(ERPathToVertexPathWrapper wrapper)
         {
             InitFromData(wrapper.TotalDistance, wrapper.Positions, wrapper.Directions, wrapper.Normals, 
