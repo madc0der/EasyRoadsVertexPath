@@ -5,7 +5,7 @@ namespace ERVertexPath
 {
     public class ERPathCamera : MonoBehaviour
     {
-        public GameObject modularRoad;
+        public GameObject erPathAdapterContainer;
         public float speedMs = 30f;
 
         private ERPathAdapter pathAdapter;
@@ -16,8 +16,8 @@ namespace ERVertexPath
         {
             cameraToFollow = GetComponent<Camera>();
             Assert.IsNotNull(cameraToFollow, "Cant find Camera component for ERPathCamera");
-            pathAdapter = modularRoad.GetComponent<ERPathAdapter>();
-            Assert.IsNotNull(pathAdapter, $"Cant find ERPathAdapter for road {modularRoad.name}");
+            pathAdapter = erPathAdapterContainer.GetComponent<ERPathAdapter>();
+            Assert.IsNotNull(pathAdapter, $"Cant find ERPathAdapter for gameObject {erPathAdapterContainer.name}");
         }
         
         private void FixedUpdate()

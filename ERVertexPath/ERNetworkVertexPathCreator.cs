@@ -10,12 +10,26 @@ namespace ERVertexPath
 
         public float defaultAngleThreshold = 5f;
         public float defaultScanStep = 1f;
+        public float defaultMaxDistance = 50f;
+
+        private bool isInitialized;
         
         private void Awake()
         {
+            Init();
+        }
+
+        public void Init()
+        {
+            if (isInitialized)
+            {
+                return;
+            }
+            
             Assert.IsNotNull(GetComponent<ERModularBase>(),
                 "Cant build vertex paths for all roads, ERModularBase not found");
             ScanRoadsAndAppendWrapper();
+            isInitialized = true;
         }
 
         private void ScanRoadsAndAppendWrapper()
@@ -41,6 +55,7 @@ namespace ERVertexPath
                 wrapper = (ERPathToVertexPathWrapper)road.gameObject.AddComponent(typeof(ERPathToVertexPathWrapper));            
                 wrapper.angleThreshold = defaultAngleThreshold;
                 wrapper.scanStep = defaultScanStep;
+                wrapper.maxDistance = defaultMaxDistance;
                 DebugLog($"Added new wrapper to road {road.name}");
             }
             else
@@ -64,7 +79,7 @@ namespace ERVertexPath
             if (!adapter)
             {
                 adapter = (ERPathAdapter) road.gameObject.AddComponent(typeof(ERPathAdapter));
-                adapter.initFromWrapper(wrapper);
+                adapter.InitFromWrapper(wrapper);
                 DebugLog($"Added new adapter to road {road.name}");
             }
             else
@@ -72,7 +87,7 @@ namespace ERVertexPath
                 DebugLog($"Found existing adapter for road {road.name}");
             }
 
-            adapter.initFromWrapper(wrapper);
+            adapter.InitFromWrapper(wrapper);
             return adapter;
         }
 

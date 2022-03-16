@@ -6,7 +6,7 @@ namespace ERVertexPath
 {
     public class DummyHelperPathController : MonoBehaviour
     {
-        public ERModularRoad modularRoad;
+        public GameObject erPathAdapterContainer;
         
         public float speedMs;
         
@@ -19,8 +19,8 @@ namespace ERVertexPath
 
         private void Start()
         {
-            pathAdapter = modularRoad.GetComponent<ERPathAdapter>();
-            Assert.IsNotNull(pathAdapter, $"Cant find ERPathAdapter for road {modularRoad.name}");
+            pathAdapter = erPathAdapterContainer.GetComponent<ERPathAdapter>();
+            Assert.IsNotNull(pathAdapter, $"Cant find ERPathAdapter for gameObject {erPathAdapterContainer.name}");
         }
 
         private void FixedUpdate()
