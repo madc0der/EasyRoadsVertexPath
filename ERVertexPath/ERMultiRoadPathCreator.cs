@@ -118,6 +118,12 @@ namespace ERVertexPath
                 positionIndex = vertexList.Count;
             }
 
+            var adapters = gameObject.GetComponents<ERPathAdapter>();
+            foreach (var adapter in adapters)
+            {
+                DestroyImmediate(adapter);
+            }
+
             unionAdapter = gameObject.AddComponent<ERPathAdapter>();
             unionAdapter.InitFromData(totalDistance, vertexList.ToArray(), directionsList.ToArray(),
                 normalsList.ToArray(), rotationsList.ToArray(), distanceList.ToArray(), startIndexToRoad);
