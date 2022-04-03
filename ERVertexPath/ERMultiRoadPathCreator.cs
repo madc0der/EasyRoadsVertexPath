@@ -34,7 +34,7 @@ namespace ERVertexPath
 
             isInitialized = true;
             
-            allRoadsPathCreator.Init();
+            allRoadsPathCreator.Init(forceInit);
             var lowerNameMask = roadNameMask.ToLower();
             var roads = new ERRoadNetwork().GetRoads().Where(_road => _road.GetName().ToLower().Contains(lowerNameMask));
 

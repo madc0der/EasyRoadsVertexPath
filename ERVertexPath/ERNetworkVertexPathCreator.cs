@@ -19,9 +19,9 @@ namespace ERVertexPath
             Init();
         }
 
-        public void Init()
+        public void Init(bool forceInit = false)
         {
-            if (isInitialized)
+            if (!forceInit && isInitialized)
             {
                 return;
             }
