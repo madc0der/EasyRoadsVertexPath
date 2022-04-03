@@ -35,6 +35,8 @@ namespace ERVertexPath
 
         public float[] Distances => distances;
 
+        public float Width => road.GetWidth();
+
         public void Init(ERModularRoad modularRoad)
         {
             road = new ERRoadNetwork().GetRoadByGameObject(modularRoad.gameObject);

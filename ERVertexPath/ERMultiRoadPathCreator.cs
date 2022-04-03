@@ -4,7 +4,6 @@ using System.Linq;
 using EasyRoads3Dv3;
 using UnityEngine;
 using UnityEngine.Assertions;
-using UnityEngine.PlayerLoop;
 
 namespace ERVertexPath
 {
@@ -56,19 +55,21 @@ namespace ERVertexPath
                 DebugLog($"Search connections for road: {road.GetName()}");
                 var endConnector = road.GetConnectionAtEnd(out _);
 
-                if (endConnector != null)
+                if (endConnector == null)
                 {
-                    for (var i = 0; i < endConnector.GetConnectionCount(); i++)
+                    continue;
+                }
+                
+                for (var i = 0; i < endConnector.GetConnectionCount(); i++)
+                {
+                    var connectedRoad = endConnector.GetConnectedRoad(i, out _);
+                    if (connectedRoad != null && connectedRoad != road)
                     {
-                        var connectedRoad = endConnector.GetConnectedRoad(i, out _);
-                        if (connectedRoad != null && connectedRoad != road)
-                        {
-                            road = connectedRoad;
-                            break;
-                        }
+                        road = connectedRoad;
+                        break;
                     }
                 }
-
+                
                 traverseConnectionCount++;
             } while (road != initialRoad && traverseConnectionCount < traverseLimit);
 
@@ -82,6 +83,7 @@ namespace ERVertexPath
 
         private void BuildUnionVertexPath(IEnumerable<ERPathToVertexPathWrapper> wrappers)
         {
+            var firstRoadWidth = 0f;
             var vertexList = new List<Vector3>();
             var directionsList = new List<Vector3>();
             var normalsList = new List<Vector3>();
@@ -93,6 +95,7 @@ namespace ERVertexPath
             var positionIndex = 0;
             foreach (var wrapper in wrappers)
             {
+                firstRoadWidth = wrapper.Width;
                 vertexList.AddRange(wrapper.Positions);
                 directionsList.AddRange(wrapper.Directions);
                 normalsList.AddRange(wrapper.Normals);
@@ -125,7 +128,8 @@ namespace ERVertexPath
             }
 
             unionAdapter = gameObject.AddComponent<ERPathAdapter>();
-            unionAdapter.InitFromData(totalDistance, vertexList.ToArray(), directionsList.ToArray(),
+            unionAdapter.InitFromData(firstRoadWidth, 
+                totalDistance, vertexList.ToArray(), directionsList.ToArray(),
                 normalsList.ToArray(), rotationsList.ToArray(), distanceList.ToArray(), startIndexToRoad);
             
             DebugLog($"Created union adapter for roads with mask = {roadNameMask}, distance = {unionAdapter.TotalDistance}, vertex count = {vertexList.Count}");

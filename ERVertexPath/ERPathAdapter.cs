@@ -6,6 +6,7 @@ namespace ERVertexPath
 {
     public class ERPathAdapter : MonoBehaviour
     {
+        private float roadWidth;
         private float totalDistance;
         private Vector3[] positions;
         private Vector3[] directions;
@@ -16,6 +17,8 @@ namespace ERVertexPath
         
         private readonly LinkedLines lastBestSection = new LinkedLines();
         private readonly PathPoint pointInstance = new PathPoint();
+
+        public float RoadWidth => roadWidth;
 
         public float TotalDistance => totalDistance;
 
@@ -36,14 +39,17 @@ namespace ERVertexPath
 
         public void InitFromWrapper(ERPathToVertexPathWrapper wrapper)
         {
-            InitFromData(wrapper.TotalDistance, wrapper.Positions, wrapper.Directions, wrapper.Normals, 
+            InitFromData(wrapper.Width, 
+                wrapper.TotalDistance, wrapper.Positions, wrapper.Directions, wrapper.Normals, 
                 wrapper.Rotations, wrapper.Distances);
         }
 
-        public void InitFromData(float totalDistance, Vector3[] positions, Vector3[] directions, Vector3[] normals,
+        public void InitFromData(float roadWidth, 
+            float totalDistance, Vector3[] positions, Vector3[] directions, Vector3[] normals,
             Quaternion[] rotations, float[] distances,
             Dictionary<int, GameObject> startIndexToRoadMap = null)
         {
+            this.roadWidth = roadWidth;
             this.totalDistance = totalDistance;
             this.positions = positions;
             this.directions = directions;
@@ -72,6 +78,7 @@ namespace ERVertexPath
             var t = (clampedDistance - d1) / (d2 - d1);
 
             pointInstance.set(
+                clampedDistance,
                 distance,
                 Vector3.Lerp(positions[i1], positions[i2], t),
                 Vector3.Lerp(directions[i1], directions[i2], t),
@@ -143,14 +150,22 @@ namespace ERVertexPath
 
         public float GetClosestDistanceAlongPath(Vector3 p)
         {
-            var bestSection = findLinkedLines(p);
+            var bestSection = FindLinkedLines(p, true);
+            if (bestSection == null)
+            {
+                bestSection = FindLinkedLines(p, false);
+            }
             projectPointOnBestSection(bestSection, p, out var distanceOnPath, out _);
             return distanceOnPath;
         }
 
         public Vector3 GetClosestPointOnPath(Vector3 p, out float closestDistance)
         {
-            var bestSection = findLinkedLines(p);
+            var bestSection = FindLinkedLines(p, true);
+            if (bestSection == null)
+            {
+                bestSection = FindLinkedLines(p, false);
+            }
             return projectPointOnBestSection(bestSection, p, out closestDistance, out _);
         }
 
@@ -241,11 +256,16 @@ namespace ERVertexPath
             }
         }
 
-        private LinkedLines findLinkedLines(Vector3 p)
+        private LinkedLines FindLinkedLines(Vector3 p, bool strictHeight)
         {
             var bestSection = lastBestSection;
             var minDistance = float.MaxValue;
-            
+
+            //Assume any bridge will have vertical offset > 10 (i.e. 16)
+            const float verticalDistanceThreshold = 10f;
+
+            var found = false;
+
             for (var i = 0; i < positions.Length; i++)
             {
                 var isFirstPoint = i == 0;
@@ -258,9 +278,12 @@ namespace ERVertexPath
 
                 var p1p = p - p1;
                 var distance = p1p.sqrMagnitude;
-                if (distance < minDistance)
+                var verticalDistance = Mathf.Abs(p.y - p1.y);
+                if (distance < minDistance && (!strictHeight || verticalDistance < verticalDistanceThreshold))
                 {
+                    found = true;
                     minDistance = distance;
+
                     bestSection.p0 = positions[i0];
                     bestSection.p1 = p1;
                     bestSection.p2 = positions[i1];
@@ -270,7 +293,8 @@ namespace ERVertexPath
                     if (isFirstPoint)
                     {
                         bestSection.d2 = totalDistance + distances[i1];
-                    } else if (isLastPoint)
+                    } 
+                    else if (isLastPoint)
                     {
                         bestSection.d2 = totalDistance + distances[i1];
                     }
@@ -285,6 +309,10 @@ namespace ERVertexPath
                 }
             }
 
+            if (!found)
+            {
+                return null;
+            }
             return bestSection;
         }
     }
@@ -298,6 +326,7 @@ namespace ERVertexPath
 
     public class PathPoint
     {
+        public float clampedDistance;
         public float distance;
         public Vector3 position;
         public Vector3 direction;
@@ -306,8 +335,16 @@ namespace ERVertexPath
         public int index1;
         public int index2;
 
-        public void set(float distance, Vector3 position, Vector3 direction, Vector3 normal, Quaternion rotation, int index1, int index2)
+        public void set(float clampedDistance,
+            float distance, 
+            Vector3 position, 
+            Vector3 direction, 
+            Vector3 normal, 
+            Quaternion rotation, 
+            int index1, 
+            int index2)
         {
+            this.clampedDistance = clampedDistance;
             this.distance = distance;
             this.position = position;
             this.direction = direction;
@@ -319,8 +356,22 @@ namespace ERVertexPath
 
         public PathPoint copyFrom(PathPoint src)
         {
-            set(src.distance, src.position, src.direction, src.normal, src.rotation, src.index1, src.index2);
+            set(src.clampedDistance,
+                src.distance, 
+                src.position, 
+                src.direction, 
+                src.normal, 
+                src.rotation, 
+                src.index1, 
+                src.index2);
             return this;
+        }
+
+        public static PathPoint CopyFrom(PathPoint src)
+        {
+            var pathPoint = new PathPoint();
+            pathPoint.copyFrom(src);
+            return pathPoint;
         }
     }
 }
