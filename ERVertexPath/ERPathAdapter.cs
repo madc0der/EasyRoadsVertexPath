@@ -59,10 +59,21 @@ namespace ERVertexPath
             this.startIndexToRoadMap = startIndexToRoadMap;
         }
 
-        public virtual PathPoint GetClosestPathPoint(Vector3 p)
+        //Pass prevPathPoint to avoid recalculations for same segment
+        public virtual PathPoint GetClosestPathPoint(Vector3 p, PathPoint prevPathPoint = null)
         {
-            var closestDistance = GetClosestDistanceAlongPath(p);
-            return GetPathPoint(closestDistance);
+            float closestDistance = 0f;
+            int startIndex = 0, endIndex = 0;
+            if (prevPathPoint != null)
+            {
+                closestDistance = GetClosestDistanceAlongPath(p, prevPathPoint, out startIndex, out endIndex);
+            }
+            else
+            {
+                closestDistance = GetClosestDistanceAlongPath(p, out startIndex, out endIndex);
+            }
+            var clampedDistance = clampDistance(closestDistance);
+            return GetPathPoint(closestDistance, clampedDistance, startIndex, endIndex);
         }
 
         public PathPoint GetPathPoint(float distance)
@@ -72,6 +83,11 @@ namespace ERVertexPath
             var i1 = i1i2.Key;
             var i2 = i1i2.Value;
 
+            return GetPathPoint(distance, clampedDistance, i1, i2);
+        }
+
+        private PathPoint GetPathPoint(float distance, float clampedDistance, int i1, int i2)
+        {
             var d1 = distances[i1];
             var d2 = i2 == 0 ? totalDistance : distances[i2];
 
@@ -84,7 +100,8 @@ namespace ERVertexPath
                 Vector3.Lerp(directions[i1], directions[i2], t),
                 Vector3.Lerp(normals[i1], normals[i2], t),
                 Quaternion.Lerp(rotations[i1], rotations[i2], t),
-                i1, i2
+                i1, i2,
+                GetHashCode()
             );
             return pointInstance;
         }
@@ -150,15 +167,39 @@ namespace ERVertexPath
 
         public float GetClosestDistanceAlongPath(Vector3 p)
         {
+            return GetClosestDistanceAlongPath(p, out _, out _);
+        }
+
+        private float GetClosestDistanceAlongPath(Vector3 p, out int startIndex, out int endIndex)
+        {
             var bestSection = FindLinkedLines(p, true);
             if (bestSection == null)
             {
                 bestSection = FindLinkedLines(p, false);
             }
-            projectPointOnBestSection(bestSection, p, out var distanceOnPath, out _);
+            projectPointOnBestSection(bestSection, p, out var distanceOnPath, out startIndex, out endIndex);
             return distanceOnPath;
         }
 
+        private float GetClosestDistanceAlongPath(Vector3 p, PathPoint prevPathPoint, out int startIndex, out int endIndex)
+        {
+            if (IsSameSegment(p, prevPathPoint, out var currentDistanceOnPath))
+            {
+                startIndex = prevPathPoint.index1;
+                endIndex = prevPathPoint.index2;
+                return currentDistanceOnPath;
+            }
+            
+            var bestSection = FindLinkedLines(p, true);
+            if (bestSection == null)
+            {
+                bestSection = FindLinkedLines(p, false);
+            }
+            projectPointOnBestSection(bestSection, p, out var distanceOnPath, out startIndex, out endIndex);
+            
+            return distanceOnPath;
+        }
+        
         public Vector3 GetClosestPointOnPath(Vector3 p, out float closestDistance)
         {
             var bestSection = FindLinkedLines(p, true);
@@ -166,7 +207,7 @@ namespace ERVertexPath
             {
                 bestSection = FindLinkedLines(p, false);
             }
-            return projectPointOnBestSection(bestSection, p, out closestDistance, out _);
+            return projectPointOnBestSection(bestSection, p, out closestDistance, out _, out _);
         }
 
         public Vector3 GetClosestPointOnPath(Vector3 p)
@@ -205,7 +246,17 @@ namespace ERVertexPath
         
         private KeyValuePair<int, int> findNeighbourIndices(float clampedDistance)
         {
-            var i1 = distances.ToList().FindLastIndex(d => d <= clampedDistance);
+            var lastIndex = -1;
+            for (var i = distances.Length - 1; i >= 0; i--)
+            {
+                var d = distances[i];
+                if (d <= clampedDistance)
+                {
+                    lastIndex = i;
+                    break;
+                }
+            }
+            var i1 = lastIndex;
             
             var i2 = i1 < distances.Length - 1 ? i1 + 1 : 0;
             return new KeyValuePair<int, int>(i1, i2);
@@ -233,9 +284,12 @@ namespace ERVertexPath
             return p1 + dot * p1p2;
         }
 
-        private Vector3 projectPointOnBestSection(LinkedLines bestSection, Vector3 p, 
+        private Vector3 projectPointOnBestSection(
+            LinkedLines bestSection, 
+            Vector3 p,
             out float distanceOnPath,
-            out int startIndex)
+            out int startIndex,
+            out int endIndex)
         {
             var p1p2 = bestSection.p2 - bestSection.p1;
             var p1p = p - bestSection.p1;
@@ -243,6 +297,7 @@ namespace ERVertexPath
             if (Vector3.Dot(p1p, p1p2) > 0)
             {
                 startIndex = bestSection.i1;
+                endIndex = bestSection.i2;
                 return projectPointOnVector(bestSection.p1, bestSection.p2, 
                     p, bestSection.d1, bestSection.d2,
                     out distanceOnPath);
@@ -250,10 +305,45 @@ namespace ERVertexPath
             else
             {
                 startIndex = bestSection.i0;
+                endIndex = bestSection.i1;
                 return projectPointOnVector(bestSection.p0, bestSection.p1, 
                     p, bestSection.d0, bestSection.d1,
                     out distanceOnPath);
             }
+        }
+
+        private bool IsSameSegment(Vector3 p, PathPoint prevPathPoint, out float currentDistanceOnPath)
+        {
+            currentDistanceOnPath = -1f;
+            
+            //if ((prevPathPoint?.calculatedForAdapter?.GetHashCode() ?? -1) != GetHashCode())
+            if (prevPathPoint?.calculatedForAdapterId != GetHashCode())
+            {
+                return false;
+            }
+            
+            var i1 = prevPathPoint.index1;
+            var i2 = prevPathPoint.index2;
+            var p1 = positions[i1];
+            var p2 = positions[i2];
+            var p1p2 = p2 - p1;
+            var p1p = p - p1;
+
+            if (Vector3.Dot(p1p, p1p2) > 0)
+            {
+                if (p1p.sqrMagnitude < p1p2.sqrMagnitude)
+                {
+                    var sourceDistance = distances[i1];
+                    var targetDistance = distances[i2];
+                    if (targetDistance < sourceDistance)
+                    {
+                        targetDistance += totalDistance;
+                    }
+                    projectPointOnVector(p1, p2, p, sourceDistance, targetDistance, out currentDistanceOnPath);
+                    return true;
+                }
+            }
+            return false;
         }
 
         private LinkedLines FindLinkedLines(Vector3 p, bool strictHeight)
@@ -289,17 +379,19 @@ namespace ERVertexPath
                     bestSection.p2 = positions[i1];
                     
                     bestSection.d0 = distances[i0];
-                    bestSection.d1 = isFirstPoint ? totalDistance + distances[i] : distances[i];
                     if (isFirstPoint)
                     {
+                        bestSection.d1 = totalDistance + distances[i];
                         bestSection.d2 = totalDistance + distances[i1];
                     } 
                     else if (isLastPoint)
                     {
+                        bestSection.d1 = distances[i];
                         bestSection.d2 = totalDistance + distances[i1];
                     }
                     else
                     {
+                        bestSection.d1 = distances[i];
                         bestSection.d2 = distances[i1];
                     }
 
@@ -334,6 +426,7 @@ namespace ERVertexPath
         public Quaternion rotation;
         public int index1;
         public int index2;
+        public int calculatedForAdapterId;
 
         public void set(float clampedDistance,
             float distance, 
@@ -342,7 +435,8 @@ namespace ERVertexPath
             Vector3 normal, 
             Quaternion rotation, 
             int index1, 
-            int index2)
+            int index2,
+            int calculatedForAdapterId)
         {
             this.clampedDistance = clampedDistance;
             this.distance = distance;
@@ -352,6 +446,7 @@ namespace ERVertexPath
             this.rotation = rotation;
             this.index1 = index1;
             this.index2 = index2;
+            this.calculatedForAdapterId = calculatedForAdapterId;
         }
 
         public PathPoint copyFrom(PathPoint src)
@@ -363,7 +458,8 @@ namespace ERVertexPath
                 src.normal, 
                 src.rotation, 
                 src.index1, 
-                src.index2);
+                src.index2,
+                src.calculatedForAdapterId);
             return this;
         }
 
